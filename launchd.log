@@ -1,0 +1,13 @@
+  フォント: Hiragino Sans
+
+🌐 PocketSmith APIから取引を取得...
+  API取得期間: 2026-05-11〜2026-05-17
+  API取引件数: 10
+📅 期間フィルタ (week)...
+📈 グラフ生成: 05/11〜05/17 / May 11 - May 17, 2026
+  グラフ保存 (ja): images/chart_2026-W19_ja.png
+  グラフ保存 (en): images/chart_2026-W19_en.png
+
+✅ 完成！ → images/ を確認してください
+   日本語グラフ : images/chart_2026-W19_ja.png
+   英語グラフ   : images/chart_2026-W19_en.png

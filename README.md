@@ -1,6 +1,6 @@
 # PocketSmith Budget Visualizer
 
-A Python script that automatically generates household budget charts from [PocketSmith](https://www.pocketsmith.com/) CSV exports — in both **Japanese and English** — for publishing on note or any blog platform.
+A Python script that automatically generates household budget charts from [PocketSmith](https://www.pocketsmith.com/) CSV exports or the PocketSmith API — in both **Japanese and English** — for publishing on note or any blog platform.
 
 ---
 
@@ -63,9 +63,30 @@ From the next session onwards, just run `source venv/bin/activate` before using 
 
 ## 🚀 Usage
 
-### 1. Export CSV from PocketSmith
+### 1. Choose CSV or API mode
+
+#### CSV mode
+
+Export CSV from PocketSmith:
 
 Go to **Reports → Transaction Search → Export CSV** and save the file as `data.csv` in the project folder.
+
+#### API mode
+
+Create a `.env` file in the project folder:
+
+```bash
+POCKETSMITH_API_KEY=your_developer_key_here
+POCKETSMITH_USER_ID=your_user_id_here
+```
+
+Do not commit `.env`. It is listed in `.gitignore`.
+
+The script uses PocketSmith's developer key authentication with the `X-Developer-Key` header and fetches transactions from:
+
+```text
+https://api.pocketsmith.com/v2/users/{POCKETSMITH_USER_ID}/transactions
+```
 
 ### 2. Activate the virtual environment
 
@@ -82,12 +103,27 @@ python generate.py data.csv --month 2026-03
 
 **Weekly report** (week containing the given date):
 ```bash
-python generate.py data.csv --week --date 2026-04-07
+python generate.py data.csv --week --date 2026-05-18
 ```
 
 **Auto-detect latest month** (no arguments needed):
 ```bash
 python generate.py data.csv
+```
+
+**Weekly report from the API:**
+```bash
+python generate.py --api --week --date 2026-05-18
+```
+
+**Last week's report from the API:**
+```bash
+python generate.py --api --week --last-week
+```
+
+**Monthly report from the API:**
+```bash
+python generate.py --api --month 2026-05
 ```
 
 ### 4. Find your images
@@ -121,13 +157,76 @@ To customize categories, edit the `CATEGORY_MAP`, `JP_PARENT`, and `JP_SUB` dict
 - Transactions categorized as `Transfer from Japn` are excluded from charts (treated as income, not expenses).
 - Only **debit** transactions are included.
 - CSV export is available on the **free PocketSmith plan** and above.
-- Add `data.csv` and `venv/` to your `.gitignore` to avoid accidentally committing personal data.
+- Add `data.csv`, `.env`, and `venv/` to your `.gitignore` to avoid accidentally committing personal data.
+
+---
+
+## ⏰ Weekly Automation
+
+### Option A: cron
+
+Open your crontab:
+
+```bash
+crontab -e
+```
+
+Run every Monday at 8:00 AM:
+
+```cron
+0 8 * * 1 cd /Users/jumboworld-oka/projects/python-pocketsmith-image && /Users/jumboworld-oka/projects/python-pocketsmith-image/venv/bin/python generate.py --api --week --last-week >> /Users/jumboworld-oka/projects/python-pocketsmith-image/cron.log 2>&1
+```
+
+### Option B: launchd on macOS
+
+Create `~/Library/LaunchAgents/com.pocketsmith.weekly-budget.plist`:
+
+```xml
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN"
+  "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>Label</key>
+  <string>com.pocketsmith.weekly-budget</string>
+  <key>WorkingDirectory</key>
+  <string>/Users/jumboworld-oka/projects/python-pocketsmith-image</string>
+  <key>ProgramArguments</key>
+  <array>
+    <string>/Users/jumboworld-oka/projects/python-pocketsmith-image/venv/bin/python</string>
+    <string>generate.py</string>
+    <string>--api</string>
+    <string>--week</string>
+    <string>--last-week</string>
+  </array>
+  <key>StartCalendarInterval</key>
+  <dict>
+    <key>Weekday</key>
+    <integer>1</integer>
+    <key>Hour</key>
+    <integer>8</integer>
+    <key>Minute</key>
+    <integer>0</integer>
+  </dict>
+  <key>StandardOutPath</key>
+  <string>/Users/jumboworld-oka/projects/python-pocketsmith-image/launchd.log</string>
+  <key>StandardErrorPath</key>
+  <string>/Users/jumboworld-oka/projects/python-pocketsmith-image/launchd.err</string>
+</dict>
+</plist>
+```
+
+Load it:
+
+```bash
+launchctl load ~/Library/LaunchAgents/com.pocketsmith.weekly-budget.plist
+```
 
 ---
 
 ## 🔮 Future Plans
 
-- [ ] Automate CSV export via PocketSmith API (requires paid plan)
+- [x] Fetch transactions via PocketSmith API
 - [ ] Auto-publish charts to note via API
 - [ ] Add monthly trend comparison charts
 

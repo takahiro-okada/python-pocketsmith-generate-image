@@ -1,12 +1,19 @@
 """
-PocketSmith CSV → note家計簿 自動生成スクリプト
+PocketSmith CSV/API → note家計簿 自動生成スクリプト
 使い方:
-  月次: python pocketsmith_to_note.py generate.csv --month 2026-03
-  週次: python pocketsmith_to_note.py generate.csv --week --date 2026-04-07
+  月次CSV: python generate.py data.csv --month 2026-03
+  週次CSV: python generate.py data.csv --week --date 2026-04-07
+  週次API: python generate.py --api --week --date 2026-04-07
   (引数なし → CSVの最新月を自動取得)
-出力: note_output/ に 日本語・英語の2枚グラフ + note下書きMarkdown
+出力: images/ に 日本語・英語の2枚グラフ
 """
 
+import os
+import sys
+import json
+import urllib.error
+import urllib.parse
+import urllib.request
 import pandas as pd
 import matplotlib
 matplotlib.use('Agg')
@@ -20,6 +27,8 @@ import argparse
 from datetime import datetime, timedelta
 import warnings
 warnings.filterwarnings('ignore')
+
+API_BASE_URL = "https://api.pocketsmith.com/v2"
 
 # ========== フォント ==========
 # Mac / Windows / Linux の順で日本語フォントを自動検出
@@ -114,10 +123,42 @@ SUB_COLORS = {
 
 EXCLUDE_CATEGORIES = {"Transfer from Japn"}
 OUTPUT_DIR = Path("images")
+TRANSACTION_COLUMNS = [
+    "Date",
+    "Merchant",
+    "Amount",
+    "Currency",
+    "Transaction Type",
+    "Account",
+    "Category",
+    "Parent Categories",
+    "Labels",
+    "Memo",
+    "Note",
+    "ID",
+]
 
 
-def load_csv(filepath):
-    df = pd.read_csv(filepath)
+def load_dotenv(path=".env"):
+    env_path = Path(path)
+    if not env_path.exists():
+        return
+
+    for line in env_path.read_text().splitlines():
+        line = line.strip()
+        if not line or line.startswith("#") or "=" not in line:
+            continue
+        key, value = line.split("=", 1)
+        key = key.strip()
+        value = value.strip().strip('"').strip("'")
+        if key and key not in os.environ:
+            os.environ[key] = value
+
+
+def prepare_transactions_dataframe(df):
+    for col in TRANSACTION_COLUMNS:
+        if col not in df.columns:
+            df[col] = ""
     df["Date"] = pd.to_datetime(df["Date"])
     df["Amount"] = pd.to_numeric(df["Amount"], errors="coerce")
     df = df[df["Amount"] < 0].copy()
@@ -130,6 +171,152 @@ def load_csv(filepath):
         axis=1
     )
     return df
+
+
+def load_csv(filepath):
+    df = pd.read_csv(filepath)
+    return prepare_transactions_dataframe(df)
+
+
+def _nested_get(data, path, default=""):
+    cur = data
+    for key in path:
+        if not isinstance(cur, dict):
+            return default
+        cur = cur.get(key)
+        if cur is None:
+            return default
+    return cur
+
+
+def _category_title(transaction):
+    category = transaction.get("category")
+    if isinstance(category, dict):
+        return category.get("title") or category.get("name") or "Uncategorised"
+    return (
+        transaction.get("category_title")
+        or transaction.get("category_name")
+        or "Uncategorised"
+    )
+
+
+def _parent_category_title(transaction):
+    candidates = [
+        ("category", "parent", "title"),
+        ("category", "parent", "name"),
+        ("category", "parent_category", "title"),
+        ("category", "parent_category", "name"),
+        ("parent_category", "title"),
+        ("parent_category", "name"),
+    ]
+    for path in candidates:
+        value = _nested_get(transaction, path)
+        if value:
+            return value
+    return transaction.get("parent_category_title") or transaction.get("parent_category_name") or ""
+
+
+def api_transaction_to_row(transaction):
+    category = _category_title(transaction)
+    account = transaction.get("transaction_account") or transaction.get("account") or {}
+    return {
+        "Date": transaction.get("date"),
+        "Merchant": transaction.get("payee") or transaction.get("merchant") or "",
+        "Amount": transaction.get("amount"),
+        "Currency": transaction.get("currency_code") or transaction.get("currency") or "",
+        "Transaction Type": transaction.get("type") or "",
+        "Account": account.get("name", "") if isinstance(account, dict) else "",
+        "Category": category,
+        "Parent Categories": _parent_category_title(transaction),
+        "Labels": transaction.get("labels") or "",
+        "Memo": transaction.get("memo") or "",
+        "Note": transaction.get("note") or "",
+        "ID": transaction.get("id") or "",
+    }
+
+
+def period_range(mode, target=None):
+    if mode == "month":
+        if target:
+            year, month = int(target[:4]), int(target[5:7])
+            start = datetime(year, month, 1)
+        else:
+            today = datetime.today()
+            start = datetime(today.year, today.month, 1)
+
+        if start.month == 12:
+            next_month = datetime(start.year + 1, 1, 1)
+        else:
+            next_month = datetime(start.year, start.month + 1, 1)
+        end = next_month - timedelta(days=1)
+    else:
+        base = pd.to_datetime(target).to_pydatetime() if target else datetime.today()
+        start = base - timedelta(days=base.weekday())
+        end = start + timedelta(days=6)
+
+    return start.strftime("%Y-%m-%d"), end.strftime("%Y-%m-%d")
+
+
+def fetch_api_transactions(mode, target=None):
+    load_dotenv()
+    api_key = os.environ.get("POCKETSMITH_API_KEY")
+    user_id = os.environ.get("POCKETSMITH_USER_ID")
+
+    missing = [
+        name for name, value in {
+            "POCKETSMITH_API_KEY": api_key,
+            "POCKETSMITH_USER_ID": user_id,
+        }.items() if not value
+    ]
+    if missing:
+        raise RuntimeError(
+            ".env または環境変数に " + ", ".join(missing) + " を設定してください。"
+        )
+
+    start_date, end_date = period_range(mode, target)
+    rows = []
+    page = 1
+
+    while True:
+        params = urllib.parse.urlencode({
+            "start_date": start_date,
+            "end_date": end_date,
+            "type": "debit",
+            "page": page,
+        })
+        url = f"{API_BASE_URL}/users/{user_id}/transactions?{params}"
+        request = urllib.request.Request(url, headers={
+            "X-Developer-Key": api_key,
+            "Accept": "application/json",
+            "User-Agent": "pocketsmith-budget-image/1.0",
+        })
+
+        try:
+            with urllib.request.urlopen(request, timeout=30) as response:
+                payload = json.loads(response.read().decode("utf-8"))
+        except urllib.error.HTTPError as e:
+            detail = e.read().decode("utf-8", errors="replace")
+            if e.code == 400 and "Requested page is out of bounds" in detail:
+                break
+            raise RuntimeError(
+                f"PocketSmith APIエラー: HTTP {e.code} {e.reason}\n{detail[:500]}"
+            ) from e
+        except urllib.error.URLError as e:
+            raise RuntimeError(f"PocketSmith APIに接続できません: {e.reason}") from e
+        except json.JSONDecodeError as e:
+            raise RuntimeError("PocketSmith APIのレスポンスをJSONとして読めませんでした。") from e
+
+        if not isinstance(payload, list):
+            raise RuntimeError("PocketSmith APIのレスポンス形式が想定外です。")
+        if not payload:
+            break
+
+        rows.extend(api_transaction_to_row(tx) for tx in payload)
+        page += 1
+
+    print(f"  API取得期間: {start_date}〜{end_date}")
+    print(f"  API取引件数: {len(rows)}")
+    return prepare_transactions_dataframe(pd.DataFrame(rows))
 
 
 def filter_period(df, mode, target=None):
@@ -236,28 +423,44 @@ def make_charts(df, label_ja, label_en, period_str):
 
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument("csv")
+    parser.add_argument("csv", nargs="?", help="PocketSmithからエクスポートしたCSVファイル")
+    parser.add_argument("--api", action="store_true", help="PocketSmith APIから取引を取得する")
     parser.add_argument("--week",  action="store_true")
+    parser.add_argument("--last-week", action="store_true", help="先週分の週次レポートを生成する")
     parser.add_argument("--month", default=None)
     parser.add_argument("--date",  default=None)
     args = parser.parse_args()
 
     mode   = "week" if args.week else "month"
     target = args.date if args.week else args.month
+    if args.last_week:
+        if not args.week:
+            parser.error("--last-week は --week と一緒に指定してください。")
+        target = (datetime.today() - timedelta(days=7)).strftime("%Y-%m-%d")
 
-    print(f"\n📂 CSV読み込み: {args.csv}")
-    df = load_csv(args.csv)
+    try:
+        if args.api:
+            print("\n🌐 PocketSmith APIから取引を取得...")
+            df = fetch_api_transactions(mode, target)
+        else:
+            if not args.csv:
+                parser.error("CSVファイルを指定するか、--api を付けてください。")
+            print(f"\n📂 CSV読み込み: {args.csv}")
+            df = load_csv(args.csv)
 
-    print(f"📅 期間フィルタ ({mode})...")
-    df_p, label_ja, label_en, period_str = filter_period(df, mode, target)
+        print(f"📅 期間フィルタ ({mode})...")
+        df_p, label_ja, label_en, period_str = filter_period(df, mode, target)
 
-    if df_p.empty:
-        print("⚠️  指定期間のデータがありません"); return
+        if df_p.empty:
+            print("⚠️  指定期間のデータがありません"); return
 
-    print(f"📈 グラフ生成: {label_ja} / {label_en}")
-    path_ja, path_en = make_charts(df_p, label_ja, label_en, period_str)
+        print(f"📈 グラフ生成: {label_ja} / {label_en}")
+        path_ja, path_en = make_charts(df_p, label_ja, label_en, period_str)
 
-    print(f"\n✅ 完成！ → images/ を確認してください")
+        print(f"\n✅ 完成！ → images/ を確認してください")
+    except RuntimeError as e:
+        print(f"\n❌ エラー: {e}", file=sys.stderr)
+        sys.exit(1)
     print(f"   日本語グラフ : {path_ja}")
     print(f"   英語グラフ   : {path_en}")
 
