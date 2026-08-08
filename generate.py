@@ -11,6 +11,7 @@ PocketSmith CSV/API → note家計簿 自動生成スクリプト
 import os
 import sys
 import json
+import time
 import urllib.error
 import urllib.parse
 import urllib.request
@@ -291,20 +292,27 @@ def fetch_api_transactions(mode, target=None):
             "User-Agent": "pocketsmith-budget-image/1.0",
         })
 
-        try:
-            with urllib.request.urlopen(request, timeout=30) as response:
-                payload = json.loads(response.read().decode("utf-8"))
-        except urllib.error.HTTPError as e:
-            detail = e.read().decode("utf-8", errors="replace")
-            if e.code == 400 and "Requested page is out of bounds" in detail:
+        for attempt in range(3):
+            try:
+                with urllib.request.urlopen(request, timeout=30) as response:
+                    payload = json.loads(response.read().decode("utf-8"))
                 break
-            raise RuntimeError(
-                f"PocketSmith APIエラー: HTTP {e.code} {e.reason}\n{detail[:500]}"
-            ) from e
-        except urllib.error.URLError as e:
-            raise RuntimeError(f"PocketSmith APIに接続できません: {e.reason}") from e
-        except json.JSONDecodeError as e:
-            raise RuntimeError("PocketSmith APIのレスポンスをJSONとして読めませんでした。") from e
+            except urllib.error.HTTPError as e:
+                detail = e.read().decode("utf-8", errors="replace")
+                if e.code == 400 and "Requested page is out of bounds" in detail:
+                    payload = []
+                    break
+                raise RuntimeError(
+                    f"PocketSmith APIエラー: HTTP {e.code} {e.reason}\n{detail[:500]}"
+                ) from e
+            except urllib.error.URLError as e:
+                if attempt < 2:
+                    print(f"  API接続に失敗しました。10秒後に再試行します ({attempt + 1}/3): {e.reason}")
+                    time.sleep(10)
+                    continue
+                raise RuntimeError(f"PocketSmith APIに接続できません: {e.reason}") from e
+            except json.JSONDecodeError as e:
+                raise RuntimeError("PocketSmith APIのレスポンスをJSONとして読めませんでした。") from e
 
         if not isinstance(payload, list):
             raise RuntimeError("PocketSmith APIのレスポンス形式が想定外です。")
