@@ -122,7 +122,7 @@ SUB_COLORS = {
     "Special":             "#C0C0C0",
 }
 
-EXCLUDE_CATEGORIES = {"Transfer from Japn"}
+EXCLUDE_CATEGORIES = {"Transfer from Japn", "Cash withdrawal"}
 OUTPUT_DIR = Path("images")
 TRANSACTION_COLUMNS = [
     "Date",
