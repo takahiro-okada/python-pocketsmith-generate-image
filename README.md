@@ -138,15 +138,26 @@ The script maps PocketSmith categories as follows:
 
 | Subcategory | Parent Category |
 |---|---|
-| Housing & Utilities | Fixed |
-| Communication | Fixed |
+| Rent & Utilities | Fixed |
+| Phone & Internet | Fixed |
+| Subscriptions | Fixed |
 | Groceries | Food |
 | Dining Out | Food |
-| Daily Necessities | Daily Necessities |
-| Car Expenses | Transport |
-| Bus / Others | Transport |
-| Leisure | Leisure |
-| Education | Education |
+| Household Supplies | Daily Necessities |
+| Household & Personal | Daily Necessities |
+| Clothing | Daily Necessities |
+| Public Transport | Transport |
+| Fuel | Transport |
+| Car Insurance | Transport |
+| Leisure & Entertainment | Leisure |
+| Childcare | Education |
+| School Expenses | Education |
+| Education & Childcare | Education |
+| Activities & Lessons | Education |
+| One-off Expenses | Special |
+| Relocation & Setup | Special |
+| Major Purchases | Special |
+| Refundable Rental Bond | Special |
 
 To customize categories, edit the `CATEGORY_MAP`, `JP_PARENT`, and `JP_SUB` dictionaries at the top of `generate.py`.
 
