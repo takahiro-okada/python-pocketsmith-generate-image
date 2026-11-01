@@ -62,17 +62,35 @@ def set_font(lang):
 
 # ========== カテゴリ設定 ==========
 CATEGORY_MAP = {
-    "Housing & Utilities": "Fixed",
-    "Communication":       "Fixed",
-    "Groceries":           "Food",
-    "Dining Out":          "Food",
-    "Daily Necessities":   "Daily Necessities",
-    "Car Expenses":        "Transport",
-    "Bus / Others":        "Transport",
-    "Transport":           "Transport",
-    "Leisure":             "Leisure",
-    "Education":           "Education",
-    "Special":             "Special",
+    "Housing & Utilities":     "Fixed",
+    "Rent & Utilities":        "Fixed",
+    "Communication":           "Fixed",
+    "Phone & Internet":        "Fixed",
+    "Subscriptions":            "Fixed",
+    "Groceries":                "Food",
+    "Dining Out":               "Food",
+    "Daily Necessities":        "Daily Necessities",
+    "Household Supplies":       "Daily Necessities",
+    "Household & Personal":     "Daily Necessities",
+    "Clothing":                 "Daily Necessities",
+    "Car Expenses":             "Transport",
+    "Bus / Others":             "Transport",
+    "Public Transport":         "Transport",
+    "Transport":                "Transport",
+    "Fuel":                     "Transport",
+    "Car Insurance":            "Transport",
+    "Leisure":                  "Leisure",
+    "Leisure & Entertainment":  "Leisure",
+    "Education":                "Education",
+    "Childcare":                "Education",
+    "School Expenses":          "Education",
+    "Education & Childcare":    "Education",
+    "Activities & Lessons":     "Education",
+    "Special":                  "Special",
+    "One-off Expenses":         "Special",
+    "Relocation & Setup":       "Special",
+    "Major Purchases":          "Special",
+    "Refundable Rental Bond":   "Special",
 }
 
 # 日本語ラベル
@@ -86,17 +104,35 @@ JP_PARENT = {
     "Special":           "その他",
 }
 JP_SUB = {
-    "Housing & Utilities": "住居・光熱費",
-    "Communication":       "通信費",
-    "Groceries":           "食料品",
-    "Dining Out":          "外食",
-    "Car Expenses":        "車関連",
-    "Bus / Others":        "バス・その他",
-    "Transport":           "交通費",
-    "Daily Necessities":   "日用品",
-    "Leisure":             "娯楽",
-    "Education":           "教育",
-    "Special":             "その他",
+    "Housing & Utilities":     "住居・光熱費",
+    "Rent & Utilities":        "家賃・光熱費",
+    "Communication":           "通信費",
+    "Phone & Internet":        "電話・インターネット",
+    "Subscriptions":            "定期購読・サブスク",
+    "Groceries":                "食料品",
+    "Dining Out":               "外食",
+    "Daily Necessities":        "日用品",
+    "Household Supplies":       "日用品",
+    "Household & Personal":     "生活・身の回り品",
+    "Clothing":                 "衣服",
+    "Car Expenses":             "車関連",
+    "Bus / Others":             "バス・その他",
+    "Public Transport":         "公共交通機関",
+    "Transport":                "交通費",
+    "Fuel":                     "燃料費",
+    "Car Insurance":            "自動車保険",
+    "Leisure":                  "娯楽",
+    "Leisure & Entertainment":  "娯楽・エンターテインメント",
+    "Education":                "教育",
+    "Childcare":                "保育",
+    "School Expenses":          "学校関連費",
+    "Education & Childcare":    "教育・保育",
+    "Activities & Lessons":     "習い事・レッスン",
+    "Special":                  "その他",
+    "One-off Expenses":         "臨時支出",
+    "Relocation & Setup":       "引っ越し・新生活",
+    "Major Purchases":          "大型購入",
+    "Refundable Rental Bond":   "返金可能な賃貸保証金",
 }
 
 PARENT_COLORS = {
@@ -109,20 +145,38 @@ PARENT_COLORS = {
     "Special":           "#C0C0C0",
 }
 SUB_COLORS = {
-    "Housing & Utilities": "#7FA8E0",
-    "Communication":       "#A3C0F0",
-    "Groceries":           "#F0A87A",
-    "Dining Out":          "#F5C9A8",
-    "Car Expenses":        "#FFE066",
-    "Bus / Others":        "#FFD700",
-    "Transport":           "#E8C53A",
-    "Daily Necessities":   "#6BBF8E",
-    "Leisure":             "#B57BCC",
-    "Education":           "#4BBFBF",
-    "Special":             "#C0C0C0",
+    "Housing & Utilities":     "#7FA8E0",
+    "Rent & Utilities":        "#6F9BD5",
+    "Communication":           "#A3C0F0",
+    "Phone & Internet":        "#8EB2E8",
+    "Subscriptions":            "#B8CEF2",
+    "Groceries":                "#F0A87A",
+    "Dining Out":               "#F5C9A8",
+    "Daily Necessities":        "#6BBF8E",
+    "Household Supplies":       "#75C79A",
+    "Household & Personal":     "#55AE7D",
+    "Clothing":                 "#91D3AA",
+    "Car Expenses":             "#FFE066",
+    "Bus / Others":             "#FFD700",
+    "Public Transport":         "#F1CE4F",
+    "Transport":                "#E8C53A",
+    "Fuel":                     "#DDB52F",
+    "Car Insurance":            "#F8D96D",
+    "Leisure":                  "#B57BCC",
+    "Leisure & Entertainment":  "#A968C2",
+    "Education":                "#4BBFBF",
+    "Childcare":                "#36AFAF",
+    "School Expenses":          "#67CACA",
+    "Education & Childcare":    "#39B7B7",
+    "Activities & Lessons":     "#81D6D6",
+    "Special":                  "#C0C0C0",
+    "One-off Expenses":         "#B0B0B0",
+    "Relocation & Setup":       "#D0A66B",
+    "Major Purchases":          "#A8A8A8",
+    "Refundable Rental Bond":   "#C9B89A",
 }
 
-EXCLUDE_CATEGORIES = {"Transfer from Japn", "Cash withdrawal"}
+EXCLUDE_CATEGORIES = {"Transfer from Japn", "Transfer from Japan", "Cash withdrawal"}
 OUTPUT_DIR = Path("images")
 TRANSACTION_COLUMNS = [
     "Date",
@@ -166,9 +220,12 @@ def prepare_transactions_dataframe(df):
     df = df[~df["Category"].isin(EXCLUDE_CATEGORIES)].copy()
     df["Amount_abs"] = df["Amount"].abs()
     df["Parent"] = df.apply(
-        lambda r: r["Parent Categories"]
-        if pd.notna(r["Parent Categories"]) and str(r["Parent Categories"]).strip()
-        else CATEGORY_MAP.get(r["Category"], r["Category"]),
+        lambda r: CATEGORY_MAP.get(
+            r["Category"],
+            r["Parent Categories"]
+            if pd.notna(r["Parent Categories"]) and str(r["Parent Categories"]).strip()
+            else r["Category"],
+        ),
         axis=1
     )
     return df
